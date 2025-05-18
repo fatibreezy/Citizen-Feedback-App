@@ -8,7 +8,7 @@ from wordcloud import WordCloud
 st.set_page_config(page_title="Citizen Feedback", layout="wide")
 
 # Load data
-df = pd.read_csv("data/sample_posts.csv")
+df = pd.read_csv("sample_posts.csv")
 feedback_data = []
 
 st.markdown("<h1 style='color:#014F86'>AI-Powered Citizen Feedback Platform</h1>", unsafe_allow_html=True)
