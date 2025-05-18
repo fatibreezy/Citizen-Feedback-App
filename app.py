@@ -26,7 +26,7 @@ if selected_category != "All":
 st.subheader("Recent Government Posts")
 for i, row in df.iterrows():
     st.markdown(f"### {row['title']}")
-    st.image(row['image_url'], use_column_width=True)
+    st.image(row['image_url'], use_container_width=True)
     st.write(row['description'])
 
     col1, col2 = st.columns(2)
