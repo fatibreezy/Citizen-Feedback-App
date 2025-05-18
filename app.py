@@ -1,72 +1,90 @@
 import streamlit as st
 import pandas as pd
-from sentiment_model import classify_sentiment
+from textblob import TextBlob
 from collections import Counter
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 
-st.set_page_config(page_title="Citizen Feedback", layout="wide")
+st.set_page_config(page_title="Citizen Feedback Platform", layout="wide")
 
-# Load data
+# Load posts
 df = pd.read_csv("sample_posts.csv")
-feedback_data = []
 
-st.markdown("<h1 style='color:#014F86'>AI-Powered Citizen Feedback Platform</h1>", unsafe_allow_html=True)
+# Temporary session state to collect feedback
+if 'feedback_data' not in st.session_state:
+    st.session_state.feedback_data = []
 
-# Filter by category
+st.title("AI-Powered Citizen Feedback Platform")
+
+# Filter
 categories = df['category'].unique()
-selected_category = st.sidebar.selectbox("Filter by Category", options=["All"] + list(categories))
-
+selected_category = st.sidebar.selectbox("Filter by Category", ["All"] + list(categories))
 if selected_category != "All":
-    df = df[df["category"] == selected_category]
+    df = df[df['category'] == selected_category]
 
-st.sidebar.markdown("**Made with love for Nigeria**")
-
-# Loop through posts
+# Display posts
+st.subheader("Recent Government Posts")
 for i, row in df.iterrows():
-    st.markdown(f"<h3 style='color:#2A9D8F'>{row['title']}</h3>", unsafe_allow_html=True)
-    st.image(row['image_url'], width=500)
+    st.markdown(f"### {row['title']}")
+    st.image(row['image_url'], use_column_width=True)
     st.write(row['description'])
 
     col1, col2 = st.columns(2)
     with col1:
-        sentiment = st.radio("React", ["Positive", "Neutral", "Negative"], key=f"sentiment_{i}")
+        reaction = st.radio("Quick Reaction", ["Positive", "Neutral", "Negative"], key=f"react_{i}")
     with col2:
-        suggestion = st.text_area("Suggestion", key=f"suggestion_{i}")
+        suggestion = st.text_area("Enter Suggestion", key=f"suggestion_{i}")
 
     if st.button("Submit", key=f"submit_{i}"):
-        classified_sent = classify_sentiment(suggestion)
-        feedback_data.append({
-            "title": row["title"],
-            "sentiment": sentiment,
-            "suggestion": suggestion,
-            "analyzed_sentiment": classified_sent
-        })
-        st.success(f"Feedback recorded. Sentiment: {classified_sent}")
+        sentiment = "None"
+        if suggestion.strip() != "":
+            blob = TextBlob(suggestion)
+            polarity = blob.sentiment.polarity
+            if polarity > 0.2:
+                sentiment = "Positive"
+            elif polarity < -0.2:
+                sentiment = "Negative"
+            else:
+                sentiment = "Neutral"
 
-# Show analytics if there’s data
-if feedback_data:
-    st.markdown("## Feedback Analytics")
+        feedback = {
+            "Post Title": row['title'],
+            "Category": row['category'],
+            "Reaction": reaction,
+            "Suggestion": suggestion,
+            "Analyzed Sentiment": sentiment
+        }
+        st.session_state.feedback_data.append(feedback)
+        st.success("Feedback submitted successfully!")
 
-    feedback_df = pd.DataFrame(feedback_data)
+# Show analytics if any feedback is recorded
+if len(st.session_state.feedback_data) > 0:
+    feedback_df = pd.DataFrame(st.session_state.feedback_data)
+    st.markdown("---")
+    st.subheader("Feedback Analytics")
 
-    # Sentiment count chart
-    counts = Counter(feedback_df['sentiment'])
-    st.subheader("Sentiment Summary")
-    fig, ax = plt.subplots()
-    ax.bar(counts.keys(), counts.values(), color=['green', 'gray', 'red'])
-    ax.set_ylabel("Count")
-    st.pyplot(fig)
+    # Sentiment chart (overall)
+    sentiment_counts = feedback_df["Analyzed Sentiment"].value_counts()
+    st.markdown("**Suggestion Sentiment Distribution**")
+    fig1, ax1 = plt.subplots()
+    ax1.bar(sentiment_counts.index, sentiment_counts.values, color=['green', 'gray', 'red'])
+    ax1.set_ylabel("Count")
+    st.pyplot(fig1)
 
-    # Word cloud from suggestions
-    all_text = " ".join(feedback_df["suggestion"].dropna())
-    if all_text.strip():
-        st.subheader("Word Cloud from Suggestions")
-        wordcloud = WordCloud(width=800, height=300, background_color='white').generate(all_text)
-        fig, ax = plt.subplots(figsize=(10, 4))
-        ax.imshow(wordcloud, interpolation='bilinear')
-        ax.axis('off')
-        st.pyplot(fig)
+    # Wordcloud from suggestions
+    suggestions_text = " ".join(feedback_df["Suggestion"].dropna().astype(str))
+    if suggestions_text.strip():
+        st.subheader("Word Cloud of Suggestions")
+        wordcloud = WordCloud(width=800, height=300, background_color='white').generate(suggestions_text)
+        fig2, ax2 = plt.subplots(figsize=(10, 4))
+        ax2.imshow(wordcloud, interpolation='bilinear')
+        ax2.axis('off')
+        st.pyplot(fig2)
 
-    # Download feedback summary
-    st.download_button("Download Feedback Summary", feedback_df.to_csv(index=False).encode('utf-8'), "feedback_summary.csv", "text/csv")
+    # Per-post summary (optional feature)
+    st.subheader("Per-Post Feedback Table")
+    st.dataframe(feedback_df)
+
+    # Download button
+    csv_data = feedback_df.to_csv(index=False).encode('utf-8')
+    st.download_button("Download Feedback Summary", csv_data, "feedback_summary.csv", "text/csv")
